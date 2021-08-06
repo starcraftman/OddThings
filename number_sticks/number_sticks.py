@@ -5,7 +5,7 @@ Problem Statement:
     Compute any possible combinations where the equation MIGHT be valid.
 
     Rules on modifying the equation:
-    1) Each number is created by sticks like an LCD display of sticks.
+    1) Each number is created by segments like an LCD display or match sticks.
     2) You can remove or add any segment or stick. Each removal or addition is
        1 move.
     3) The best solution is the one that is a valid equation from the original
