@@ -40,19 +40,23 @@ def test_generate_numbers():
 
 
 def test_candidate_numbers():
-    cands, cand_moves = number_sticks.candidate_numbers(55, 3)
+    cands = number_sticks.candidate_numbers(55, 3)
 
-    assert cands[:4] == [55, 56, 59, 65]
-    assert cand_moves[65] == 1
+    assert [x.value for x in cands[:4]] == [55, 56, 59, 65]
+    assert cands[3].moves == 1
 
 
 def test_find_lowest_sum():
     vals = number_sticks.find_lowest_sum(59, 12, 98)
 
-    assert vals[0] == '86 + 12 = 98, takes 4 moves.'
+    answers = [x.value for x in vals if x.moves == 4]
+    assert '86(4) + 12(0) = 98(0), takes 4 moves.' in answers
+    assert vals[0].moves == 4
 
 
 def test_find_lowest_sub():
     vals = number_sticks.find_lowest_sub(59, 12, 98)
 
-    assert vals[0] == '50 - 12 = 38, takes 4 moves.'
+    answers = [x.value for x in vals if x.moves == 4]
+    assert '50(2) - 12(0) = 38(1), takes 4 moves.' in answers
+    assert vals[0].moves == 4

@@ -23,10 +23,11 @@ Sides numbered from bottom going clockwise, for example:
 
     7 is across the middle.
 """
+import functools
 import re
 
 # Any optimal solution shouldn't have a single move exceeding this amount.
-DEFAULT_MOVE_CUTOFF = 4
+DEFAULT_MOVE_CUTOFF = 6
 # Limit from being abused by silly users.
 MAX_VAL = 99999
 # Each number is mapped from the digit to a set of "sticks" as above.
@@ -43,6 +44,53 @@ STICK_SETS = {
     9: {1, 3, 4, 5, 6, 7},
 }
 FROM_TO_CACHE = {}
+
+
+@functools.total_ordering
+class ValueMove():
+    """
+    A container that stores a value and a move tracker for that value.
+    It is essentially a data class.
+    """
+    def __init__(self, value, moves):
+        self.value = value
+        self.moves = moves
+
+    def __repr__(self):
+        return f"ValueMove(value={self.value}, move={self.moves})"
+
+    def __str__(self):
+        return f"{self.value}({self.moves})"
+
+    def __add__(self, other):
+        return ValueMove(self.value + other.value, self.moves + other.moves)
+
+    def __sub__(self, other):
+        return ValueMove(self.value - other.value, self.moves + other.moves)
+
+    def __iadd__(self, other):
+        self.value += other.value
+        self.moves += other.moves
+
+        return self
+
+    def __isub__(self, other):
+        self.value -= other.value
+        self.moves += other.moves
+
+        return self
+
+    def __int__(self):
+        return self.value
+
+    def __eq__(self, other):
+        return self.moves == other.moves
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __lt__(self, other):
+        return self.moves < other.moves
 
 
 def compute_moves(from_val: int, to_val: int) -> int:
@@ -95,7 +143,6 @@ def candidate_numbers(target_num: int, move_cutoff: int = DEFAULT_MOVE_CUTOFF):
     Returns a dictionary mapping the possible matches with least moves.
     """
     candidates = []
-    candidate_moves = {}
     target_list = [int(n) for n in list(str(target_num))]
     positions = len(target_list)
 
@@ -109,11 +156,9 @@ def candidate_numbers(target_num: int, move_cutoff: int = DEFAULT_MOVE_CUTOFF):
             continue
 
         candidate_num = int("".join([str(x) for x in possible]))
-        candidates += [candidate_num]
-        candidate_moves[candidate_num] = moves
+        candidates += [ValueMove(candidate_num, moves)]
 
-    candidates = sorted(candidates, key=lambda x: candidate_moves[x])
-    return candidates, candidate_moves
+    return sorted(candidates)
 
 
 def find_lowest_sum(val1: int, val2: int, val_sum: int, *, total_cutoff: int = DEFAULT_MOVE_CUTOFF):
@@ -128,27 +173,28 @@ def find_lowest_sum(val1: int, val2: int, val_sum: int, *, total_cutoff: int = D
 
     Returns: A list in order of solutions in increasing number of moves.
     """
-    first_candidates, first_move_dict = candidate_numbers(val1, 4)
-    second_candidates, second_move_dict = candidate_numbers(val2, 4)
-    sum_candidates, sum_move_dict = candidate_numbers(val_sum, 4)
+    first_candidates = candidate_numbers(val1, 4)
+    second_candidates = candidate_numbers(val2, 4)
+    sum_candidates = candidate_numbers(val_sum, 4)
 
-    answers, answers_map = [], {}
+    answers = []
     for total in sum_candidates:
         for first in first_candidates:
             for second in second_candidates:
-                if (first + second) == total:
-                    move_total = first_move_dict[first] + second_move_dict[second] + sum_move_dict[total]
-                    if move_total > total_cutoff:
+
+                temp = first + second
+                if temp.value == total.value:
+
+                    temp.moves += total.moves
+                    if temp.moves > total_cutoff:
                         continue
 
-                    answer = f"{first} + {second} = {total}, takes {move_total} moves."
-                    answers += [answer]
-                    answers_map[answer] = move_total
+                    answers += [ValueMove(f"{first} + {second} = {total}, takes {temp.moves} moves.", temp.moves)]
 
-    return sorted(answers, key=lambda x: answers_map[x])
+    return sorted(answers, key=lambda x: x.moves)
 
 
-def find_lowest_sub(val1: int, val2: int, target_sum: int, *, total_cutoff: int = DEFAULT_MOVE_CUTOFF):
+def find_lowest_sub(val1: int, val2: int, val_sum: int, *, total_cutoff: int = DEFAULT_MOVE_CUTOFF):
     """
     Taking the values of formula:
         a + b = c
@@ -161,25 +207,25 @@ def find_lowest_sub(val1: int, val2: int, target_sum: int, *, total_cutoff: int 
 
     Returns: A list in order of solutions in increasing number of moves.
     """
-    first_candidates, first_move_dict = candidate_numbers(val1, 4)
-    second_candidates, second_move_dict = candidate_numbers(val2, 4)
-    sum_candidates, sum_move_dict = candidate_numbers(target_sum, 4)
+    first_candidates = candidate_numbers(val1, 4)
+    second_candidates = candidate_numbers(val2, 4)
+    sum_candidates = candidate_numbers(val_sum, 4)
 
-    answers, answers_map = [], {}
+    answers = []
     for total in sum_candidates:
         for first in first_candidates:
             for second in second_candidates:
-                if (first - second) == total:
-                    # Add one to move total due to changing + -> - in problem
-                    move_total = first_move_dict[first] + second_move_dict[second] + sum_move_dict[total] + 1
-                    if move_total > total_cutoff:
+
+                temp = first - second
+                if temp.value == total.value:
+
+                    temp.moves += total.moves + 1
+                    if temp.moves > total_cutoff:
                         continue
 
-                    answer = f"{first} - {second} = {total}, takes {move_total} moves."
-                    answers += [answer]
-                    answers_map[answer] = move_total
+                    answers += [ValueMove(f"{first} - {second} = {total}, takes {temp.moves} moves.", temp.moves)]
 
-    return sorted(answers, key=lambda x: answers_map[x])
+    return sorted(answers, key=lambda x: x.moves)
 
 
 def main():
@@ -205,13 +251,15 @@ def main():
     second = int(match.group(2))
     total = int(match.group(3))
     if first > MAX_VAL or second > MAX_VAL or total > MAX_VAL:
-        raise ValueError("Computing the sticks for these high values may be very expensive. Choose lower values.")
+        raise ValueError("Computing the sticks for these high values may be very expensive. Choose sane values or remove this check.")
 
-    print("Top 25 possible sums with move cost.\n")
-    for ind, cand in enumerate(find_lowest_sum(first, second, total, total_cutoff=total_cutoff))[:25]:
+    print("Top 25 possible sums with move cost.")
+    print("=" * 40 + "\n")
+    for cand in find_lowest_sum(first, second, total, total_cutoff=total_cutoff)[:25]:
         print(cand)
 
-    print("Top 25 Possible subtractions with move cost.\n1 move is taken to change to subtraction.\n")
+    print("Top 25 Possible subtractions with move cost.\n1 move is taken to change to subtraction.")
+    print("=" * 40 + "\n")
     for cand in find_lowest_sub(first, second, total, total_cutoff=total_cutoff)[:25]:
         print(cand)
 
